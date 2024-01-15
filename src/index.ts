@@ -1,37 +1,27 @@
 import { defineEndpoint } from "@directus/extensions-sdk";
 import Joi from "joi";
 import { performance } from "perf_hooks";
-import { stall } from "./utils";
+import { getMilliseconds, stall } from "./utils";
 import { Ikoddi } from "ikoddi-client-sdk";
 import ms from "ms";
 import { nanoid } from "nanoid";
 import * as jwt from "jsonwebtoken";
-
-export interface User {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  phone_number: string | null;
-  password: string | null;
-  status: "active" | "suspended" | "invited";
-  role: string | null;
-  provider: string;
-  external_identifier: string | null;
-  auth_data: string | Record<string, unknown> | null;
-  app_access: boolean;
-  admin_access: boolean;
-}
+import { User } from "@directus/types";
+import {
+  InvalidCredentialsError,
+  InvalidPayloadError,
+  InvalidProviderError,
+  UserSuspendedError,
+} from "@directus/errors";
 
 export default defineEndpoint((router, ctx) => {
-  const { env, logger, database: knex, emitter, services, getSchema } = ctx;
-  const { SettingsService, ActivityService } = services;
-
-  router.get("/verify-phonenumber", async (req, res, next) => {
+  router.get("/smsotp/send-otp", async (req, res, next) => {
     const verifyPhoneNumberSchema = Joi.object({
       phoneNumber: Joi.string().required(),
       resendOtp: Joi.boolean(),
     }).unknown();
+
+    const { env, logger } = ctx;
 
     const STALL_TIME = env["LOGIN_STALL_TIME"] as number;
     const timeStart = performance.now();
@@ -65,28 +55,25 @@ export default defineEndpoint((router, ctx) => {
     return next();
   });
 
-  router.get("/login", async (req, res, next) => {
+  router.get("/smsotp/login", async (req, res, next) => {
+    const { env, logger, database: knex, emitter, services, getSchema } = ctx;
+    const { ActivityService } = services;
+    const schema = await getSchema();
+
     const loginWithOTPSchema = Joi.object({
       phone_number: Joi.string().required(),
       otp_code: Joi.string().required(),
       verification_key: Joi.string().required(),
     }).unknown();
 
-    const schema = await getSchema();
-
-    const settingsService = new SettingsService({
-      knex: knex,
-      schema: schema,
-    });
-
     const activityService = new ActivityService({ knex: knex, schema: schema });
 
     const accountability = {
       ip: req.ip,
       role: null,
+      userAgent: req.get("user-agent"),
+      origin: req.get("origin"),
     };
-    const userAgent = req.get("user-agent");
-    const origin = req.get("origin");
 
     const STALL_TIME = env["LOGIN_STALL_TIME"] as number;
     const timeStart = performance.now();
@@ -98,10 +85,6 @@ export default defineEndpoint((router, ctx) => {
       verification_key: req.body.verification_key,
     };
 
-    const loginAttemptsLimiter = createRateLimiter("RATE_LIMITER", {
-      duration: 0,
-    }); // directus code on /api/src/rate-limiter.ts
-
     const { error } = loginWithOTPSchema.validate(req.body);
 
     if (error) {
@@ -110,7 +93,7 @@ export default defineEndpoint((router, ctx) => {
     }
 
     const user = await knex
-      .select<User & { tfa_secret: string | null }>(
+      .select<User & { app_access: boolean; admin_access: boolean }>(
         "u.id",
         "u.first_name",
         "u.last_name",
@@ -128,7 +111,7 @@ export default defineEndpoint((router, ctx) => {
       )
       .from("directus_users as u")
       .leftJoin("directus_roles as r", "u.role", "r.id")
-      .where("u.phone_number", phone_number)
+      .where("u.phone_number", payload.phone_number)
       .first();
 
     const updatedPayload = await emitter.emitFilter(
@@ -175,34 +158,6 @@ export default defineEndpoint((router, ctx) => {
       }
     }
 
-    const { auth_login_attempts: allowedAttempts } =
-      await settingsService.readSingleton({
-        fields: ["auth_login_attempts"],
-      });
-
-    if (allowedAttempts !== null) {
-      loginAttemptsLimiter.points = allowedAttempts;
-
-      try {
-        await loginAttemptsLimiter.consume(user.id);
-      } catch (error) {
-        if (error instanceof RateLimiterRes && error.remainingPoints === 0) {
-          await this.knex("directus_users")
-            .update({ status: "suspended" })
-            .where({ id: user.id });
-          user.status = "suspended";
-
-          // This means that new attempts after the user has been re-activated will be accepted
-          await loginAttemptsLimiter.set(user.id, 0, 0);
-        } else {
-          throw new ServiceUnavailableError({
-            service: "authentication",
-            reason: "Rate limiter unreachable",
-          });
-        }
-      }
-    }
-
     const ikoddiClient = new Ikoddi()
       .withApiBaseURL(env["AUTH_SMSOTP_API_BASE_URL"] as string)
       .withApiKey(env["AUTH_SMSOTP_API_KEY"] as string)
@@ -211,9 +166,9 @@ export default defineEndpoint((router, ctx) => {
 
     try {
       await ikoddiClient.verifyOTP({
-        identity: payload["phone_number"],
-        otp: payload["otp_code"],
-        verification_key: payload["verification_key"],
+        identity: payload.phone_number,
+        otp: payload.otp_code,
+        verificationKey: payload.verification_key,
       });
     } catch (error) {
       logger.error(error);
@@ -249,10 +204,9 @@ export default defineEndpoint((router, ctx) => {
     });
 
     const refreshTokenExpiration = new Date(
-      /// getMilliseconds function is on directus code at  /api/src/utils/get-milliseconds.ts
-      Date.now() + getMilliseconds(process.env["REFRESH_TOKEN_TTL"], 0)
+      Date.now() + getMilliseconds(process.env["REFRESH_TOKEN_TTL"], 0) ?? 0
     );
-    // const refreshToken = nanoid(64);
+
     const refreshToken = nanoid(64);
 
     await knex("directus_sessions").insert({
@@ -260,19 +214,19 @@ export default defineEndpoint((router, ctx) => {
       user: user.id,
       expires: refreshTokenExpiration,
       ip: accountability?.ip,
-      user_agent: userAgent,
-      origin: origin,
+      user_agent: accountability.userAgent,
+      origin: accountability.origin,
     });
 
     await knex("directus_sessions").delete().where("expires", "<", new Date());
 
-    if (req.accountability) {
+    if (accountability) {
       await activityService.createOne({
         action: "login",
         user: user.id,
         ip: accountability.ip,
-        user_agent: userAgent,
-        origin: origin,
+        user_agent: accountability.userAgent,
+        origin: accountability.origin,
         collection: "directus_users",
         item: user.id,
       });
@@ -283,10 +237,6 @@ export default defineEndpoint((router, ctx) => {
       .where({ id: user.id });
 
     emitStatus("success");
-
-    if (allowedAttempts !== null) {
-      await loginAttemptsLimiter.set(user.id, 0, 0);
-    }
 
     await stall(STALL_TIME, timeStart);
 
