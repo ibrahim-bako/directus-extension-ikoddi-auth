@@ -1,5 +1,5 @@
 {
-	"name": "directus-extension-ikoddi-auth-extension",
+	"name": "ikoddi-auth",
 	"description": "Please enter a description for your extension",
 	"icon": "extension",
 	"version": "1.0.0",
@@ -36,7 +36,6 @@
 		"jsonwebtoken": "^9.0.2",
 		"ms": "^2.1.3",
 		"nanoid": "^5.0.4",
-		"perf_hooks": "^0.0.1",
-		"rate-limiter-flexible": "^4.0.0"
+		"perf_hooks": "^0.0.1"
 	}
 }

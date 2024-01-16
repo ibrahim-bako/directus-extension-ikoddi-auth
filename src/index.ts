@@ -3,7 +3,6 @@ import Joi from "joi";
 import { performance } from "perf_hooks";
 import { getMilliseconds, stall } from "./utils";
 import { Ikoddi } from "ikoddi-client-sdk";
-import ms from "ms";
 import { nanoid } from "nanoid";
 import * as jwt from "jsonwebtoken";
 import { User } from "@directus/types";
@@ -15,7 +14,7 @@ import {
 } from "@directus/errors";
 
 export default defineEndpoint((router, ctx) => {
-  router.get("/smsotp/send-otp", async (req, res, next) => {
+  router.post("/smsotp/send-otp", async (req, res, next) => {
     const verifyPhoneNumberSchema = Joi.object({
       phoneNumber: Joi.string().required(),
       resendOtp: Joi.boolean(),
@@ -52,10 +51,10 @@ export default defineEndpoint((router, ctx) => {
       throw new InvalidProviderError();
     }
 
-    return next();
+    return res.send({ status: 200, message: "send successful" });
   });
 
-  router.get("/smsotp/login", async (req, res, next) => {
+  router.post("/smsotp/login", async (req, res, next) => {
     const { env, logger, database: knex, emitter, services, getSchema } = ctx;
     const { ActivityService } = services;
     const schema = await getSchema();
@@ -240,11 +239,11 @@ export default defineEndpoint((router, ctx) => {
 
     await stall(STALL_TIME, timeStart);
 
-    return {
+    return res.send({
       accessToken,
       refreshToken,
       expires: getMilliseconds(env["ACCESS_TOKEN_TTL"]),
       id: user.id,
-    };
+    });
   });
 });
