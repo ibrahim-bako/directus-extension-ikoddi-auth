@@ -44,8 +44,7 @@ export default {
         const sendOTPResponse = await ikoddiClient.sendOTP(phone_number);
 
         if (sendOTPResponse.status === 0 && sendOTPResponse.otpToken) {
-          return res.send({
-            status: 201,
+          return res.status(201).send({
             verification_key: sendOTPResponse.otpToken,
           });
         } else {
@@ -250,9 +249,9 @@ export default {
 
         await stall(STALL_TIME, timeStart);
 
-        return res.send({
-          accessToken,
-          refreshToken,
+        return res.status(200).send({
+          access_token: accessToken,
+          refresh_token: refreshToken,
           expires: getMilliseconds(env["ACCESS_TOKEN_TTL"]),
           id: user.id,
         });
