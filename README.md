@@ -32,7 +32,9 @@ Ikoddi authentication with directus
 
 ## Usage
 
-### Send OTP
+`<phone-number>` must be a valid phone number with country code
+
+#### Send OTP
 
 ```
 POST http://directus-base_url.com/smsotp/send-otp
@@ -45,7 +47,7 @@ result {
 }
 ```
 
-### Verify OTP and Login
+#### Verify OTP and Login
 
 ```
 POST http://directus-base_url.com/smsotp/verify
