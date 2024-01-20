@@ -55,8 +55,8 @@ export default {
         logger.error("[IKODDI] Failed to send OTP");
         logger.error(error);
 
-        if (isDirectusError(error)) return res.send(error.status).send(error);
-        return res.send(500).send(error);
+        if (isDirectusError(error)) return res.status(error.status).send(error);
+        return res.status(500).send(error);
       }
     });
 
@@ -262,8 +262,8 @@ export default {
         logger.error("[IKODDI] Fail to sign");
         logger.error(error);
 
-        if (isDirectusError(error)) return res.send(error.status).send(error);
-        return res.send(500).send(error);
+        if (isDirectusError(error)) return res.status(error.status).send(error);
+        return res.status(500).send(error);
       }
     });
   },
