@@ -9,6 +9,7 @@ import {
   InvalidCredentialsError,
   InvalidPayloadError,
   UserSuspendedError,
+  isDirectusError,
 } from "@directus/errors";
 import { Request, Router, Response } from "express";
 
@@ -53,7 +54,9 @@ export default {
       } catch (error) {
         logger.error("[IKODDI] Failed to send OTP");
         logger.error(error);
-        return res.send(error);
+
+        if (isDirectusError(error)) return res.send(error.status).send(error);
+        return res.send(500).send(error);
       }
     });
 
@@ -258,7 +261,9 @@ export default {
       } catch (error) {
         logger.error("[IKODDI] Fail to sign");
         logger.error(error);
-        return res.send(error);
+
+        if (isDirectusError(error)) return res.send(error.status).send(error);
+        return res.send(500).send(error);
       }
     });
   },
