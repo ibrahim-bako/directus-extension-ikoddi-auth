@@ -1,12 +1,13 @@
 {
-	"name": "ikoddi-auth",
-	"description": "Please enter a description for your extension",
+	"name": "directus-extension-ikoddi-auth",
+	"description": "Directus endpoint extension for add ikoddi authentication",
 	"icon": "extension",
-	"version": "1.0.0",
+	"version": "0.1.1",
 	"keywords": [
 		"directus",
 		"directus-extension",
-		"directus-custom-endpoint"
+		"directus-custom-endpoint",
+		"ikoddi"
 	],
 	"type": "module",
 	"directus:extension": {
