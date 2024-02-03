@@ -20,10 +20,10 @@ Ikoddi authentication with directus
 3. Add env variables
 
    ```
-   IKODDI_AUTH_API_URL: "<>"
-   IKODDI_AUTH_API_KEY: "<>"
-   IKODDI_AUTH_GROUP_ID: "<>"
-   IKODDI_AUTH_OTP_APP_ID: "<>"
+   IKODDI_AUTH_API_URL: "..."
+   IKODDI_AUTH_API_KEY: "..."
+   IKODDI_AUTH_GROUP_ID: "..."
+   IKODDI_AUTH_OTP_APP_ID: "..."
    ```
 
 4. Add `phone_number` field to `directus_user` collection
