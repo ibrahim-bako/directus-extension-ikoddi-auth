@@ -2,7 +2,7 @@
 	"name": "directus-extension-ikoddi-auth",
 	"description": "Directus endpoint extension for add ikoddi authentication",
 	"icon": "extension",
-	"version": "0.1.4",
+	"version": "0.1.5",
 	"keywords": [
 		"directus",
 		"directus-extension",
